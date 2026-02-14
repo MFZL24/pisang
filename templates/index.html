@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pisang</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <header>
+        <div class="logo"><i class="fa-solid fa-banana"></i> Banana<span style="color:var(--accent-yellow)">Scan</span>
+        </div>
+        <nav>
+            <ul>
+                <li><a onclick="navigateTo('beranda')" id="link-beranda" class="active">Beranda</a></li>
+                <li><a onclick="navigateTo('deskripsi')" id="link-deskripsi">Deskripsi</a></li>
+                <li><a onclick="navigateTo('panduan')" id="link-panduan">Panduan</a></li>
+                <li><a onclick="navigateTo('aplikasi')" id="link-aplikasi"
+                        style="color:var(--accent-yellow); font-weight:800;">APLIKASI</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- WRAPPER FOR LANDING PAGE -->
+    <div id="landing-page" class="view-section">
+
+        <!-- BERANDA SECTION -->
+        <section id="beranda">
+            <div class="content-wrapper animate fade-up">
+                <h1>Sistem Cerdas <br><span>Klasifikasi & Deteksi</span> Pisang</h1>
+                <p class="hero-subtitle">Teknologi SVM canggih untuk menentukan kualitas pisang Anda dengan presisi
+                    tinggi.</p>
+                <div style="display:flex; gap:1.5rem; justify-content:center;">
+                    <a onclick="navigateTo('aplikasi')" class="btn-cta">Mulai Sekarang</a>
+                    <a href="#panduan" class="btn-cta btn-cta-outline">Pelajari Dulu</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- DESKRIPSI SECTION -->
+        <section id="deskripsi">
+            <h2 class="section-title animate fade-up">Kategori Kematangan</h2>
+            <div class="classification-grid">
+                <div class="class-card animate fade-up" style="transition-delay: 0.1s;">
+                    <div class="banana-icon"><i class="fa-solid fa-leaf" style="color:#4caf50;"></i></div>
+                    <h3>Mentah</h3>
+                    <p style="color:#666;">Kulit hijau pekat. Belum ada aromatik khas pisang.</p>
+                </div>
+                <div class="class-card animate fade-up" style="transition-delay: 0.2s;">
+                    <div class="banana-icon"><i class="fa-solid fa-face-smile" style="color:#ffcc00;"></i></div>
+                    <h3>Matang</h3>
+                    <p style="color:#666;">Kuning cerah. Level gula optimal dan tekstur lembut.</p>
+                </div>
+                <div class="class-card animate fade-up" style="transition-delay: 0.3s;">
+                    <div class="banana-icon"><i class="fa-solid fa-cookie-bite" style="color:#795548;"></i></div>
+                    <h3>Terlalu Matang</h3>
+                    <p style="color:#666;">Bercak cokelat. Cocok untuk bahan kue atau smoothie.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PANDUAN SECTION -->
+        <section id="panduan" style="margin-bottom: 4rem;">
+            <h2 class="section-title animate fade-up">Panduan Penggunaan</h2>
+            <div class="guide-wrapper">
+                <div class="guide-step animate slide-in">
+                    <div class="step-num">01</div>
+                    <div>
+                        <h4>Buka Aplikasi</h4>
+                        <p>Akses menu "APLIKASI" pada navigation bar di atas.</p>
+                    </div>
+                </div>
+                <div class="guide-step animate slide-in" style="transition-delay: 0.1s;">
+                    <div class="step-num">02</div>
+                    <div>
+                        <h4>Pilih Fitur</h4>
+                        <p>Pilih antara Klasifikasi (Cek Kematangan) atau Deteksi (Cari Objek).</p>
+                    </div>
+                </div>
+                <div class="guide-step animate slide-in" style="transition-delay: 0.2s;">
+                    <div class="step-num">03</div>
+                    <div>
+                        <h4>Dapatkan Hasil</h4>
+                        <p>Sistem akan memproses gambar Anda secara instan.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- WRAPPER FOR APP INTERFACE -->
+    <div id="aplikasi-view" class="hidden-view">
+        <div style="max-width: 1200px; margin:0 auto; padding: 0 5%;">
+
+            <!-- ===============================
+             MODE SELECTION
+        =============================== -->
+            <div id="app-selection" class="animate fade-up">
+
+                <div style="text-align:center; margin-bottom: 3rem;">
+                    <h2 style="font-size:2.5rem; margin-bottom:1rem;">
+                        Pilih Mode Analisis
+                    </h2>
+                    <p style="color:#666;">
+                        Pilih fitur kecerdasan buatan yang Anda butuhkan
+                    </p>
+                </div>
+
+                <div class="app-selection-container">
+
+                    <!-- KLASIFIKASI -->
+                    <div class="app-choice-card" onclick="openApp('klasifikasi')">
+                        <div class="banana-icon">
+                            <i class="fa-solid fa-ranking-star"></i>
+                        </div>
+                        <h3>Klasifikasi Kematangan</h3>
+                        <p>Identifikasi fase kematangan pisang.</p>
+                        <button class="btn-cta" style="margin-top:1.5rem; padding: 0.8rem 2rem; font-size:0.9rem;">
+                            Pilih
+                        </button>
+                    </div>
+
+                    <!-- DETEKSI -->
+                    <div class="app-choice-card" onclick="openApp('deteksi')">
+                        <div class="banana-icon">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </div>
+                        <h3>Deteksi Objek</h3>
+                        <p>Lokalisasi posisi pisang dalam gambar.</p>
+                        <button class="btn-cta" style="margin-top:1.5rem; padding: 0.8rem 2rem; font-size:0.9rem;">
+                            Pilih
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <!-- ===============================
+             WORKSPACE
+        =============================== -->
+            <div id="app-workspace" class="hidden-view animate fade-up">
+
+                <!-- HEADER -->
+                <div style="display:flex; align-items:center; gap:2rem; margin-bottom:2rem;">
+                    <button onclick="backToSelection()"
+                        style="background:none; border:none; font-size:1.2rem; cursor:pointer;">
+                        <i class="fa-solid fa-arrow-left"></i> Kembali
+                    </button>
+
+                    <h2 id="app-title" style="font-size:1.8rem;">
+                        Workspace
+                    </h2>
+                </div>
+
+
+                <!-- GRID -->
+                <div style="display:grid; grid-template-columns: 1fr 350px; gap:2rem;">
+
+                    <!-- LEFT PANEL -->
+                    <div style="background:#fff;
+                            border-radius:24px;
+                            padding:2rem;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                            border:1px solid #eee;">
+
+                        <!-- UPLOAD ZONE -->
+                        <div class="upload-container" id="uploadZone" onclick="triggerUpload()">
+
+                            <input type="file" id="fileInput" accept="image/*" style="display:none;"
+                                onchange="handleFileSelect(event)">
+
+                            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                            <div class="upload-text">
+                                Klik atau Drop Gambar Disini
+                            </div>
+                        </div>
+
+                        <!-- PREVIEW AREA -->
+                        <div id="previewContainer" style="display:none; position:relative; margin-top:1rem;">
+
+                            <!-- Image -->
+                            <img id="imagePreview" style="width:100%;
+                                    display:none;
+                                    border-radius:16px;">
+
+                            <!-- Video Wrapper (Camera Mode) -->
+                            <div id="videoWrapper"
+                                style="display:none; position:relative; width:100%; border-radius:16px; overflow:hidden;">
+
+                                <video id="videoCamera" autoplay playsinline style="width:100%;
+                                              display:block;
+                                              transform: scaleX(-1);
+                                              object-fit: cover;">
+                                </video>
+
+                                <!-- Canvas for Overlay (Realtime) or Result (Static) -->
+                                <canvas id="canvas" style="display:none;
+                                               max-width:100%;
+                                               border-radius:16px;">
+                                </canvas>
+                            </div>
+
+                        </div>
+
+
+
+                        <!-- BUTTONS -->
+                        <div style="display:flex; gap:1rem; margin-top:2rem; justify-content:center; flex-wrap:wrap;">
+                            <!-- Main Camera Button (Start) -->
+                            <button id="btn-open-camera" class="btn-cta">
+                                <i class="fa-solid fa-video"></i> Kamera
+                            </button>
+
+                            <!-- Capture Button (Single Shot) -->
+                            <button id="btn-capture" class="btn-cta" style="display:none; background:#333; color:white;"
+                                onclick="captureImage()">
+                                Ambil Foto
+                            </button>
+
+                            <!-- Realtime Info (Start) -->
+                            <button id="btn-realtime" class="btn-cta"
+                                style="display:none; background:var(--accent-yellow); color:#000;"
+                                onclick="startRealtime()">
+                                Live Deteksi
+                            </button>
+
+                            <!-- Stop Realtime -->
+                            <button id="btn-stop-realtime" class="btn-cta"
+                                style="display:none; background:#ff4444; color:white;" onclick="stopRealtime()">
+                                Stop Live
+                            </button>
+
+                            <!-- Reset -->
+                            <button id="btn-reset" class="btn-cta"
+                                style="display:none; background:#eee; color:#333; box-shadow:none;"
+                                onclick="resetApp()">
+                                Ulangi
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <!-- RIGHT PANEL (RESULT) -->
+                    <div style="background:#fff;
+                            border-radius:24px;
+                            padding:2rem;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                            border:1px solid #eee;
+                            height:fit-content;">
+
+                        <h3 style="margin-bottom:1.5rem;
+                               border-bottom:2px solid #f0f0f0;
+                               padding-bottom:1rem;">
+                            Hasil Analisis
+                        </h3>
+
+                        <!-- RESULT BOX -->
+                        <div id="resultBox" style="display:none; text-align:center;">
+
+                            <i class="fa-solid fa-circle-check" style="font-size:3rem;
+                                  color:var(--accent-yellow);
+                                  margin-bottom:1rem;">
+                            </i>
+
+                            <div class="result-value" id="resultValue" style="font-size:1.8rem;
+                                    font-weight:800;
+                                    margin-bottom:0.5rem;
+                                    line-height:1.2;">
+                                --
+                            </div>
+
+                            <p id="additionalInfo" style="color:#666;">
+                                --
+                            </p>
+                        </div>
+
+                        <!-- INITIAL STATE -->
+                        <div id="initialStateBox" style="text-align:center;
+                                color:#ccc;
+                                padding:2rem 0;">
+                            <i class="fa-solid fa-image" style="font-size:3rem; margin-bottom:1rem;">
+                            </i>
+                            <p>Menunggu input...</p>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <h2>Banana<span style="color:var(--accent-yellow)">Scan</span></h2>
+                <p>Sistem cerdas klasifikasi kematangan pisang untuk mendukung pertanian modern berbasis teknologi.</p>
+            </div>
+
+            <div class="footer-links">
+                <h4>Navigasi</h4>
+                <ul>
+                    <li><a href="#" onclick="navigateTo('beranda')">Beranda</a></li>
+                    <li><a href="#" onclick="navigateTo('deskripsi')">Deskripsi</a></li>
+                    <li><a href="#" onclick="navigateTo('panduan')">Panduan</a></li>
+                    <li><a href="#" onclick="navigateTo('aplikasi')">Aplikasi</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-links">
+                <h4>Teknologi</h4>
+                <ul>
+                    <li><a href="#">SVM Algorithm</a></li>
+                    <li><a href="#">Computer Vision</a></li>
+                    <li><a href="#">Web AI</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2026 BananaScan System by Antigravity. All rights reserved.
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}?ver=4"></script>
+</body>
+
+</html>
