@@ -1,23 +1,30 @@
-# app.py
+# ===============================
+# IMPORT
+# ===============================
 import io
 import os
-import numpy as np
+import json
 import torch
+import numpy as np
 from PIL import Image
 from flask import Flask, request, jsonify, render_template
 from torchvision.models.detection import ssdlite320_mobilenet_v3_large
 from torchvision.transforms import functional as F
 
-# Import config
-from config import (
-    MODEL_PATH,
-    NUM_CLASSES,
-    CONFIDENCE_THRESHOLD,
-    UPLOAD_FOLDER,
-    RESULT_FOLDER
-)
 
+# ===============================
+# CONFIG
+# ===============================
+MODEL_PATH = "models/ssd_mobilenet_banana.pth"
+NUM_CLASSES = 4  # background + 3 kelas
+CONFIDENCE_THRESHOLD = 0.5
+
+
+# ===============================
+# INIT FLASK
+# ===============================
 app = Flask(__name__)
+
 
 # ===============================
 # DEVICE
@@ -25,122 +32,139 @@ app = Flask(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
+
 # ===============================
-# LABEL MAPPING
+# LOAD LABEL MAP FROM COCO
 # ===============================
 def load_label_map():
-    """Load label map from npy file if exists, otherwise use default mapping"""
-    label_map_path = os.path.join(os.path.dirname(__file__), "models", "label_map.npy")
-    
-    if os.path.exists(label_map_path):
-        try:
-            labels = np.load(label_map_path, allow_pickle=True).item()
-            print(f"Loaded label map: {labels}")
-            return labels
-        except Exception as e:
-            print(f"Error loading label_map.npy: {e}")
-    
-    # Default label mapping (class 1, 2, 3 = 3 classes of bananas)
-    # Based on NUM_CLASSES = 4 (background + 3 classes)
-    default_labels = {
-        1: "Pisang Mentah",
-        2: "Pisang Matang", 
-        3: "Pisang Terlalu Matang"
-    }
-    print(f"Using default label map: {default_labels}")
-    return default_labels
+    annotation_path = "_annotations.coco.json"
 
-LABEL_MAP = load_label_map()
+    if os.path.exists(annotation_path):
+        with open(annotation_path, "r") as f:
+            coco_data = json.load(f)
+
+        mapping = {}
+        for cat in coco_data["categories"]:
+            mapping[cat["id"]] = cat["name"]
+
+        print("✅ COCO Label Map Loaded:", mapping)
+        return mapping
+
+    # fallback jika json tidak ada
+    print("⚠️ COCO file tidak ditemukan. Menggunakan default label.")
+    return {
+    1: "overripe",
+    2: "ripe",
+    3: "unripe"
+}
+
+
+
+LABEL_MAP_RAW = load_label_map()
+
+
+# ===============================
+# TRANSLATE LABEL KE INDONESIA
+# ===============================
+def translate_label(raw_label):
+    mapping = {
+        "ripe": "Pisang Matang",
+        "unripe": "Pisang Mentah",
+        "overripe": "Pisang Terlalu Matang",
+        "banana": "Pisang"
+    }
+    return mapping.get(raw_label, raw_label)
+
 
 # ===============================
 # LOAD MODEL
 # ===============================
 def load_model():
-    # num_classes = 4 (background + 3 kelas pisang)
-    num_classes = NUM_CLASSES
-    
-    # Gunakan large backbone seperti model_loader.py
     model = ssdlite320_mobilenet_v3_large(pretrained=True)
-    
-    # Sesuaikan classification head
-    model.head.classification_head.num_classes = num_classes
 
-    # Load checkpoint
+    # Sesuaikan jumlah class
+    model.head.classification_head.num_classes = NUM_CLASSES
+
     checkpoint = torch.load(MODEL_PATH, map_location=device)
     model.load_state_dict(checkpoint)
-    
+
     model.to(device)
     model.eval()
     return model
 
+
 model = load_model()
 print("✅ Model Loaded Correctly")
 
+
 # ===============================
-# HOME ROUTE
+# ROUTE HOME
 # ===============================
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 # ===============================
 # DETECTION ROUTE
 # ===============================
 @app.route("/predict-detection", methods=["POST"])
 def predict_detection():
+
     if "image" not in request.files:
         return jsonify({"success": False, "error": "No image uploaded"}), 400
 
     file = request.files["image"]
+
     if file.filename == "":
         return jsonify({"success": False, "error": "Empty filename"}), 400
 
     try:
         # ===============================
-        # PREPROCESS IMAGE
+        # READ IMAGE
         # ===============================
         image_bytes = file.read()
-        
-        # Debug: Print file size
-        print(f"📸 Received image: {len(image_bytes)} bytes")
-        
-        # Validate file is not empty
+
         if len(image_bytes) == 0:
-            print("❌ Error: Empty file content")
-            return jsonify({"success": False, "error": "Empty file content"}), 400
-        
-        # Open and convert image
+            return jsonify({"success": False, "error": "Empty file"}), 400
+
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        print(f"✅ Image loaded: {img.size}")
-        
+
+        # Convert to tensor
         img_tensor = F.to_tensor(img).to(device)
 
         # Add batch dimension
         img_tensor = img_tensor.unsqueeze(0)
 
         # ===============================
-        # MODEL INFERENCE
+        # INFERENCE
         # ===============================
         with torch.no_grad():
-            outputs = model(img_tensor)[0]  # batch_size=1
+            outputs = model(img_tensor)[0]
 
         detections = []
-        threshold = CONFIDENCE_THRESHOLD  # Use config threshold
-        
+
         for box, score, label in zip(
-            outputs["boxes"], outputs["scores"], outputs["labels"]
+            outputs["boxes"],
+            outputs["scores"],
+            outputs["labels"]
         ):
-            if score >= threshold:
-                # Skip background class (class 0)
+            if score >= CONFIDENCE_THRESHOLD:
+
                 label_id = int(label.cpu().numpy())
+
+                # Skip background
                 if label_id == 0:
                     continue
-                    
+
                 x1, y1, x2, y2 = box.cpu().numpy().tolist()
-                
-                # Get label from LABEL_MAP
-                label_name = LABEL_MAP.get(label_id, f"Pisang Class {label_id}")
-                
+
+                # Get raw label from COCO
+                raw_label = LABEL_MAP_RAW.get(label_id, f"class_{label_id}")
+
+                # Translate ke Bahasa Indonesia
+                label_name = translate_label(raw_label)
+
                 detections.append({
                     "box": [x1, y1, x2, y2],
                     "score": float(score.cpu().numpy()),
@@ -148,13 +172,18 @@ def predict_detection():
                     "class_id": label_id
                 })
 
+        # ===============================
+        # RESPONSE
+        # ===============================
         if len(detections) == 0:
-            print("⚠️ No detections found above threshold")
-            return jsonify({"success": False, "detections": [], "message": "No detections above threshold"})
+            return jsonify({
+                "success": False,
+                "detections": [],
+                "message": "No detections"
+            })
 
-        print(f"✅ Found {len(detections)} detection(s)")
         return jsonify({
-            "success": True, 
+            "success": True,
             "detections": detections,
             "count": len(detections)
         })
@@ -162,6 +191,7 @@ def predict_detection():
     except Exception as e:
         print("Error:", e)
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ===============================
 # RUN APP

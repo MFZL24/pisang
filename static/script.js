@@ -279,6 +279,19 @@ function stopCamera() {
 }
 
 // ===============================
+// LABEL MAPPING
+// ===============================
+
+function getMaturityLabel(class_id) {
+  const mapping = {
+    1: "Pisang Terlalu Matang",
+    2: "Pisang Matang",
+    3: "Pisang Mentah",
+  };
+  return mapping[class_id] || "Unknown";
+}
+
+// ===============================
 // REALTIME DETECTION
 // ===============================
 
@@ -298,7 +311,6 @@ function startRealtime() {
   // Setup Overlay Canvas
   canvas.style.display = "block";
   canvas.style.position = "absolute";
-  canvas.style.transform = "scaleX(-1)"; // Mirror canvas to match video
   canvas.style.top = "0";
   canvas.style.left = "0";
   canvas.style.width = "100%";
@@ -357,15 +369,34 @@ async function sendRealtimeFrame(blob) {
   try {
     const response = await fetch("/predict-detection", {
       method: "POST",
-      body: formData
+      body: formData,
     });
 
     if (!response.ok) return;
 
     const data = await response.json();
 
-    if (isRealtime) {
-      drawRealtimeBoxes(data.detections);
+    if (!isRealtime) return;
+
+    drawRealtimeBoxes(data.detections);
+
+    // ===============================
+    // 🔥 TAMBAHAN UPDATE PANEL HASIL
+    // ===============================
+    if (data.success && data.detections.length > 0) {
+      resultBox.style.display = "block";
+      initialStateBox.style.display = "none";
+
+      resultValue.innerText = `${data.detections.length} Pisang Terdeteksi`;
+
+      // Ambil label pertama (atau bisa diringkas semua)
+      const labels = data.detections.map((d) => d.label);
+      const uniqueLabels = [...new Set(labels)];
+
+      additionalInfo.innerText = uniqueLabels.join(", ");
+    } else {
+      resultValue.innerText = "Tidak Ada Deteksi";
+      additionalInfo.innerText = "Model tidak menemukan objek.";
     }
   } catch (err) {
     console.error("Realtime error:", err);
@@ -373,38 +404,38 @@ async function sendRealtimeFrame(blob) {
 }
 
 function drawRealtimeBoxes(detections) {
-  // Ensure canvas matches video size again (in case of resize)
-  if (canvas.width !== videoCamera.videoWidth) {
-    canvas.width = videoCamera.videoWidth;
-    canvas.height = videoCamera.videoHeight;
-  }
-
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   if (!detections || detections.length === 0) return;
 
-  detections.forEach(det => {
+  canvas.width = videoCamera.videoWidth;
+  canvas.height = videoCamera.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  detections.forEach((det) => {
     if (det.score >= 0.5) {
+      const x1 = det.box[0];
+      const y1 = det.box[1];
+      const x2 = det.box[2];
+      const y2 = det.box[3];
+
+      // MIRROR KOORDINAT X
+      const mirroredX = canvas.width - x2;
+      const width = x2 - x1;
+      const height = y2 - y1;
+
       ctx.strokeStyle = "#00FF00";
       ctx.lineWidth = 4;
-      ctx.strokeRect(
-        det.box[0],
-        det.box[1],
-        det.box[2] - det.box[0],
-        det.box[3] - det.box[1]
-      );
+      ctx.strokeRect(mirroredX, y1, width, height);
 
       ctx.fillStyle = "#00FF00";
-      ctx.font = "24px Arial";
-      ctx.fillText(
-        `${det.label}`,
-        det.box[0],
-        det.box[1] > 30 ? det.box[1] - 10 : det.box[1] + 30
-      );
+      ctx.font = "20px Arial";
+      const displayLabel = getMaturityLabel(det.class_id);
+      ctx.fillText(displayLabel, mirroredX, y1 > 25 ? y1 - 10 : y1 + 25);
     }
   });
 }
+
 
 
 function captureImage() {
@@ -428,30 +459,7 @@ function captureImage() {
   calculateResult(imagePreview);
 }
 
-// ===============================
-// RESET
-// ===============================
 
-function resetApp() {
-  stopCamera();
-  showWorkspacePreview(false);
-  fileInput.value = "";
-
-  if (canvas) {
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    canvas.style.display = "none";
-    canvas.style.position = 'static';
-    canvas.style.transform = 'none';
-  }
-
-  if (btnOpenCamera) btnOpenCamera.style.display = "inline-block";
-}
-
-function resetResults() {
-  resultBox.style.display = "none";
-  initialStateBox.style.display = "block";
-}
 
 // ===============================
 // AI PROCESSING
@@ -627,4 +635,5 @@ async function sendToDetectionAPI(sourceImg) {
     additionalInfo.innerText = "Gagal terhubung ke server.";
     console.error("❌ Error:", error);
   }
+
 }
