@@ -284,9 +284,9 @@ function stopCamera() {
 
 function getMaturityLabel(class_id) {
   const mapping = {
-    1: "Pisang Terlalu Matang",
+    1: "Pisang Mentah",
     2: "Pisang Matang",
-    3: "Pisang Mentah",
+    3: "Pisang Terlalu Matang",
   };
   return mapping[class_id] || "Unknown";
 }
@@ -466,28 +466,16 @@ function captureImage() {
 // ===============================
 
 function calculateResult(sourceImg) {
-
-  initialStateBox.style.display = 'none';
-  resultBox.style.display = 'block';
+  initialStateBox.style.display = "none";
+  resultBox.style.display = "block";
   resultValue.innerText = "Menganalisis...";
   additionalInfo.innerText = "Mohon tunggu...";
 
-  // ===============================
-  // MODE KLASIFIKASI (TIDAK DIUBAH)
-  // ===============================
-  // ===============================
-  // MODE KLASIFIKASI (MENGGUNAKAN BACKEND REAL)
-  // ===============================
-  // Hapus kode dummy lama
-
-
-  // ===============================
-  // MODE KLASIFIKASI & DETEKSI (SAMA-SAMA PAKAI API)
-  // ===============================
-
-  // Kita gunakan model deteksi yang sama untuk klasifikasi
-  // Ambil hasil deteksi terbaik sebagai "kelas" gambar tersebut
-  sendToDetectionAPI(sourceImg);
+  if (currentMode === "klasifikasi") {
+    sendToClassificationAPI(sourceImg);
+  } else {
+    sendToDetectionAPI(sourceImg);
+  }
 }
 
 
@@ -636,4 +624,59 @@ async function sendToDetectionAPI(sourceImg) {
     console.error("❌ Error:", error);
   }
 
+}
+
+// ===============================
+// CLASSIFICATION API CALL
+// ===============================
+
+async function sendToClassificationAPI(sourceImg) {
+
+  try {
+
+    const blob = await fetch(sourceImg.src).then(r => r.blob());
+
+    const formData = new FormData();
+    formData.append("image", blob);
+
+    console.log("📤 Sending image to classification backend...");
+
+    const response = await fetch("/predict-classification", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error("Server error");
+    }
+
+    const data = await response.json();
+    console.log("📥 Classification response:", data);
+
+    if (!data.success) {
+      resultValue.innerText = "Error";
+      additionalInfo.innerText = data.error;
+      return;
+    }
+
+    resultValue.innerText = data.label;
+
+    // Warna berdasarkan label
+    if (data.label.includes("Mentah")) {
+      resultValue.style.color = "#4caf50";
+    } else if (data.label.includes("Terlalu")) {
+      resultValue.style.color = "#795548";
+    } else {
+      resultValue.style.color = "#ffcc00";
+    }
+
+    additionalInfo.innerText =
+      "Confidence: " + (data.confidence * 100).toFixed(1) + "%";
+
+  } catch (error) {
+
+    resultValue.innerText = "Error";
+    additionalInfo.innerText = "Gagal terhubung ke server.";
+    console.error("❌ Classification Error:", error);
+  }
 }

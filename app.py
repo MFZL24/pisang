@@ -5,18 +5,21 @@ import io
 import os
 import json
 import torch
+import cv2
 import numpy as np
 from PIL import Image
 from flask import Flask, request, jsonify, render_template
 from torchvision.models.detection import ssdlite320_mobilenet_v3_large
 from torchvision.transforms import functional as F
+from skimage.feature import hog
+from joblib import load
 
 
 # ===============================
-# CONFIG
+# CONFIG DETECTION
 # ===============================
 MODEL_PATH = "models/ssd_mobilenet_banana.pth"
-NUM_CLASSES = 4  # background + 3 kelas
+NUM_CLASSES = 4
 CONFIDENCE_THRESHOLD = 0.5
 
 
@@ -34,7 +37,7 @@ print(f"Using device: {device}")
 
 
 # ===============================
-# LOAD LABEL MAP FROM COCO
+# LOAD LABEL MAP DETECTION
 # ===============================
 def load_label_map():
     annotation_path = "_annotations.coco.json"
@@ -50,22 +53,16 @@ def load_label_map():
         print("✅ COCO Label Map Loaded:", mapping)
         return mapping
 
-    # fallback jika json tidak ada
-    print("⚠️ COCO file tidak ditemukan. Menggunakan default label.")
     return {
-    1: "overripe",
-    2: "ripe",
-    3: "unripe"
-}
-
+        1: "overripe",
+        2: "ripe",
+        3: "unripe"
+    }
 
 
 LABEL_MAP_RAW = load_label_map()
 
 
-# ===============================
-# TRANSLATE LABEL KE INDONESIA
-# ===============================
 def translate_label(raw_label):
     mapping = {
         "ripe": "Pisang Matang",
@@ -77,12 +74,10 @@ def translate_label(raw_label):
 
 
 # ===============================
-# LOAD MODEL
+# LOAD DETECTION MODEL
 # ===============================
-def load_model():
+def load_detection_model():
     model = ssdlite320_mobilenet_v3_large(pretrained=True)
-
-    # Sesuaikan jumlah class
     model.head.classification_head.num_classes = NUM_CLASSES
 
     checkpoint = torch.load(MODEL_PATH, map_location=device)
@@ -93,8 +88,59 @@ def load_model():
     return model
 
 
-model = load_model()
-print("✅ Model Loaded Correctly")
+model_detection = load_detection_model()
+print("✅ Detection Model Loaded")
+
+
+# ===============================
+# LOAD CLASSIFICATION MODEL
+# ===============================
+model_svm = load("models/svm_model_pisang.pkl")
+scaler = load("models/scaler_pisang.pkl")
+pca = load("models/pca_pisang.pkl")
+label_map_cls = np.load("models/label_map.npy", allow_pickle=True).item()
+idx_to_label = {v: k for k, v in label_map_cls.items()}
+
+IMG_SIZE = (128, 128)
+
+print("✅ Classification Model Loaded")
+print("SVM expects:", model_svm.n_features_in_)
+print("PCA components:", pca.n_components_)
+
+
+# ===============================
+# FEATURE EXTRACTION (IDENTIK STREAMLIT)
+# ===============================
+def extract_features_classification(img_bgr):
+    img = cv2.resize(img_bgr, IMG_SIZE)
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    mean_rgb = img.mean(axis=(0, 1))
+    mean_hsv = hsv.mean(axis=(0, 1))
+
+    hue = hsv[:, :, 0]
+    brown_ratio = np.mean((hue >= 10) & (hue <= 25))
+
+    hog_feat = hog(
+        gray,
+        orientations=9,
+        pixels_per_cell=(8, 8),
+        cells_per_block=(2, 2),
+        visualize=False
+    )
+
+    feature = np.concatenate([mean_rgb, mean_hsv, [brown_ratio], hog_feat])
+
+    print("Raw Feature:", len(feature))  # HARUS 8107
+
+    feature = scaler.transform([feature])
+    feature = pca.transform(feature)
+
+    print("After PCA shape:", feature.shape)
+
+    return feature
 
 
 # ===============================
@@ -114,33 +160,16 @@ def predict_detection():
     if "image" not in request.files:
         return jsonify({"success": False, "error": "No image uploaded"}), 400
 
-    file = request.files["image"]
-
-    if file.filename == "":
-        return jsonify({"success": False, "error": "Empty filename"}), 400
-
     try:
-        # ===============================
-        # READ IMAGE
-        # ===============================
+        file = request.files["image"]
         image_bytes = file.read()
 
-        if len(image_bytes) == 0:
-            return jsonify({"success": False, "error": "Empty file"}), 400
-
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-
-        # Convert to tensor
         img_tensor = F.to_tensor(img).to(device)
-
-        # Add batch dimension
         img_tensor = img_tensor.unsqueeze(0)
 
-        # ===============================
-        # INFERENCE
-        # ===============================
         with torch.no_grad():
-            outputs = model(img_tensor)[0]
+            outputs = model_detection(img_tensor)[0]
 
         detections = []
 
@@ -150,19 +179,14 @@ def predict_detection():
             outputs["labels"]
         ):
             if score >= CONFIDENCE_THRESHOLD:
-
                 label_id = int(label.cpu().numpy())
 
-                # Skip background
                 if label_id == 0:
                     continue
 
                 x1, y1, x2, y2 = box.cpu().numpy().tolist()
 
-                # Get raw label from COCO
                 raw_label = LABEL_MAP_RAW.get(label_id, f"class_{label_id}")
-
-                # Translate ke Bahasa Indonesia
                 label_name = translate_label(raw_label)
 
                 detections.append({
@@ -172,16 +196,6 @@ def predict_detection():
                     "class_id": label_id
                 })
 
-        # ===============================
-        # RESPONSE
-        # ===============================
-        if len(detections) == 0:
-            return jsonify({
-                "success": False,
-                "detections": [],
-                "message": "No detections"
-            })
-
         return jsonify({
             "success": True,
             "detections": detections,
@@ -189,7 +203,41 @@ def predict_detection():
         })
 
     except Exception as e:
-        print("Error:", e)
+        print("Detection Error:", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ===============================
+# CLASSIFICATION ROUTE
+# ===============================
+@app.route("/predict-classification", methods=["POST"])
+def predict_classification():
+
+    if "image" not in request.files:
+        return jsonify({"success": False, "error": "No image uploaded"}), 400
+
+    try:
+        file = request.files["image"]
+        image_bytes = file.read()
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img_np = np.array(img)
+
+        # 🔥 PENTING: RGB → BGR
+        img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+
+        feature = extract_features_classification(img_bgr)
+
+        pred = model_svm.predict(feature)[0]
+        label = idx_to_label[pred]
+
+        return jsonify({
+            "success": True,
+            "label": label
+        })
+
+    except Exception as e:
+        print("Classification Error:", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
